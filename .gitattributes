@@ -1,0 +1,72 @@
+# Source code
+*.txt text
+*.md text
+*.json text
+*.yaml text diff
+*.yml text diff
+*.toml text
+*.cfg text
+*.ini text
+*.sh text eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.webp binary
+*.bmp binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.rar binary
+
+# Documents
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+
+# Executables & binaries
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.class binary
+*.wasm binary
+
+# VS Code extension
+*.vsix binary
+
+# Media
+*.mp4 binary
+*.avi binary
+*.mov binary
+*.wmv binary
+*.mp3 binary
+*.wav binary
+*.flac binary
+*.ogg binary
+
+# Fonts
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.ttf binary
+*.otf binary
+
+# Misc
+*.db binary
+*.sqlite binary
+*.DS_Store binary
+Thumbs.db binary
