@@ -13,11 +13,10 @@ Welcome! This is a sandbox repository for testing [Quick PR Studio](https://gith
 
 Pull Requests containing any of the following will be rejected:
 
-- Pornography, sexually explicit content, or NSFW material
-- Content involving minors in inappropriate contexts
-- Terrorism or violence-related content
+- Sexually suggestive or age-inappropriate content
+- Content depicting harmful activities or promoting violence
 - Political propaganda or sensitive political topics
-- LGBT-related controversial or offensive content
+- Offensive or controversial content targeting specific groups
 - Any other content that harms community atmosphere
 
 ## No Format Requirements
