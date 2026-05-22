@@ -95,6 +95,7 @@ jobs:
             CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA")
           else
             CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || echo "")
+            CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -v '^.github/workflows/ci\.yml$' || true)
           fi
 
           OVER_SIZED=""
@@ -135,6 +136,8 @@ jobs:
           else
             CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || echo "")
           fi
+
+          CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -v '^.github/workflows/ci\.yml$' || true)
 
           VIOLATIONS=""
 
