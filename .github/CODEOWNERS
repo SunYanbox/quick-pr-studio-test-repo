@@ -1,0 +1,9 @@
+# Critical files require repository owner review
+
+LICENSE @SunYanbox
+README.md @SunYanbox
+README_ZH_CN.md @SunYanbox
+CONTRIBUTING.md @SunYanbox
+.github/ @SunYanbox
+.gitattributes @SunYanbox
+.gitignore @SunYanbox
