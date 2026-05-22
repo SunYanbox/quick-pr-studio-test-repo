@@ -1,0 +1,177 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Job 1: Critical Files Protection ──────────────────────────────
+  # If non-owner modifies critical files, request owner review.
+  # CI passes regardless — auto-merge waits for owner approval.
+  critical-files-review:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Detect changes to critical files
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CRITICAL_PATTERNS='^(LICENSE|README\.md|README_ZH_CN\.md|CONTRIBUTING\.md|\.github/|\.gitattributes|\.gitignore)'
+          CHANGED_FILES=$(curl -s \
+            -H "Authorization: token ${{ github.token }}" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            | jq -r '.[].filename')
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          CRITICAL=$(echo "$CHANGED_FILES" | grep -E "$CRITICAL_PATTERNS" || true)
+
+          if [ -n "$CRITICAL" ]; then
+            echo "has_critical=true" >> $GITHUB_OUTPUT
+            echo "Critical files modified:"
+            echo "$CRITICAL"
+            echo "critical_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$CRITICAL" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_critical=false" >> $GITHUB_OUTPUT
+            echo "No critical files modified."
+          fi
+
+      - name: Request owner review for critical file changes
+        if: steps.detect.outputs.has_critical == 'true' && github.actor != github.repository_owner
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Modified critical files detected by non-owner (${{ github.actor }}):"
+          echo "${{ steps.detect.outputs.critical_files }}"
+          echo "Requesting review from ${{ github.repository_owner }}..."
+          gh api \
+            /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/requested-reviewers \
+            -X POST \
+            -F reviewers="[\"${{ github.repository_owner }}\"]" \
+            --silent
+          echo "✓ Review requested from ${{ github.repository_owner }}."
+
+  # ── Job 2: File Size Check ───────────────────────────────────────
+  # Reject any file > 100 KB in the commit.
+  check-file-size:
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check file sizes
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA")
+          else
+            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || echo "")
+          fi
+
+          OVER_SIZED=""
+          MAX_SIZE=$((100 * 1024))  # 100 KB
+
+          for FILE in $CHANGED_FILES; do
+            if [ -f "$FILE" ]; then
+              SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+              if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+                OVER_SIZED="$OVER_SIZED $FILE($SIZE bytes)"
+              fi
+            fi
+          done
+
+          if [ -n "$OVER_SIZED" ]; then
+            echo "::error::Files exceeding 100KB limit:$OVER_SIZED"
+            exit 1
+          else
+            echo "✓ All files within size limit."
+          fi
+
+  # ── Job 3: Content Scan ──────────────────────────────────────────
+  # Scan text files for prohibited content.
+  content-scan:
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for prohibited content
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "$HEAD_SHA")
+          else
+            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || echo "")
+          fi
+
+          VIOLATIONS=""
+
+          for FILE in $CHANGED_FILES; do
+            if [ -f "$FILE" ]; then
+              MIME=$(file --mime-type -b "$FILE" 2>/dev/null || echo "application/octet-stream")
+              case "$MIME" in
+                text/*|application/json|application/xml|application/yaml)
+                  ;;
+                *)
+                  continue
+                  ;;
+              esac
+
+              # Keyword-based content flagging
+              PATTERNS=(
+                'porn'
+                'hentai'
+                'nsfw'
+                'underage'
+                'terroris'
+                '恶意软件'
+                '木马'
+                '病毒'
+              )
+
+              for PATTERN in "${PATTERNS[@]}"; do
+                if grep -i -l "$PATTERN" "$FILE" > /dev/null 2>&1; then
+                  VIOLATIONS="$VIOLATIONS $FILE(flagged:$PATTERN)"
+                fi
+              done
+            fi
+          done
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo "::error::Prohibited content detected in:$VIOLATIONS"
+            exit 1
+          else
+            echo "✓ Content scan passed."
+          fi

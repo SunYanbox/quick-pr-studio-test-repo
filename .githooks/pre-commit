@@ -1,0 +1,25 @@
+#!/bin/sh
+# Pre-commit hook to prevent files larger than 100KB from being committed.
+#
+# To enable this hook, run:
+#   git config core.hooksPath .githooks
+
+MAX_SIZE=$((100 * 1024))
+
+OVER_SIZED=""
+for FILE in $(git diff --cached --name-only --diff-filter=ACMRT); do
+    if [ -f "$FILE" ]; then
+        SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+        if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+            OVER_SIZED="$OVER_SIZED $FILE($(echo $SIZE | awk '{printf "%.1f KB", $1/1024}'))"
+        fi
+    fi
+done
+
+if [ -n "$OVER_SIZED" ]; then
+    echo "ERROR: Files exceeding 100KB limit cannot be committed:$OVER_SIZED"
+    echo "Please remove these files and try again."
+    exit 1
+fi
+
+exit 0
